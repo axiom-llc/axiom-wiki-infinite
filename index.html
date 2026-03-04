@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Wiki</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --fg: #e0e0e0;
+            --accent: #bb86fc;
+            --muted: #888;
+            --error: #cf6679;
+            --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: var(--font);
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+            box-sizing: border-box;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #333;
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        input, button {
+            background: #222;
+            color: var(--fg);
+            border: 1px solid #444;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1rem;
+        }
+
+        input:focus, button:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        button {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #333;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #api-key-input {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+            width: 200px;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; }
+        h2 { color: var(--accent); margin-top: 0; }
+
+        #content {
+            font-size: 1.1rem;
+            white-space: pre-wrap;
+        }
+
+        .interactive-word {
+            color: var(--fg);
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: transparent;
+            transition: text-decoration-color 0.2s, color 0.2s;
+        }
+
+        .interactive-word:hover {
+            color: var(--accent);
+            text-decoration-color: var(--accent);
+        }
+
+        .streaming::after {
+            content: '█';
+            animation: blink 1s step-start infinite;
+            color: var(--accent);
+            margin-left: 4px;
+        }
+
+        .error { color: var(--error); }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Infinite Wiki</h1>
+        <input type="password" id="api-key-input" placeholder="Enter Gemini API Key..." />
+    </header>
+
+    <div class="controls">
+        <form id="search-form" style="display: flex; gap: 0.5rem; flex-grow: 1;">
+            <input type="text" id="search-input" placeholder="Search a topic..." style="flex-grow: 1;" required />
+            <button type="submit" id="search-btn">Search</button>
+        </form>
+        <button id="random-btn">Random</button>
+    </div>
+
+    <main>
+        <h2 id="topic-title">Hypertext</h2>
+        <div id="content"></div>
+    </main>
+
+    <script>
+        // --- Configuration & State ---
+        const PREDEFINED_WORDS = [
+            'Balance', 'Harmony', 'Discord', 'Unity', 'Fragmentation', 'Clarity', 'Ambiguity', 'Presence', 'Absence', 'Creation', 'Destruction', 'Light', 'Shadow', 'Beginning', 'Ending', 'Rising', 'Falling', 'Connection', 'Isolation', 'Hope', 'Despair',
+            'Order and chaos', 'Light and shadow', 'Sound and silence', 'Form and formlessness', 'Being and nonbeing', 'Presence and absence', 'Motion and stillness', 'Unity and multiplicity', 'Finite and infinite', 'Sacred and profane', 'Memory and forgetting', 'Question and answer', 'Search and discovery', 'Journey and destination', 'Dream and reality', 'Time and eternity', 'Self and other', 'Known and unknown', 'Spoken and unspoken', 'Visible and invisible',
+            'Zigzag', 'Waves', 'Spiral', 'Bounce', 'Slant', 'Drip', 'Stretch', 'Squeeze', 'Float', 'Fall', 'Spin', 'Melt', 'Rise', 'Twist', 'Explode', 'Stack', 'Mirror', 'Echo', 'Vibrate',
+            'Gravity', 'Friction', 'Momentum', 'Inertia', 'Turbulence', 'Pressure', 'Tension', 'Oscillate', 'Fractal', 'Quantum', 'Entropy', 'Vortex', 'Resonance', 'Equilibrium', 'Centrifuge', 'Elastic', 'Viscous', 'Refract', 'Diffuse', 'Cascade', 'Levitate', 'Magnetize', 'Polarize', 'Accelerate', 'Compress', 'Undulate',
+            'Liminal', 'Ephemeral', 'Paradox', 'Zeitgeist', 'Metamorphosis', 'Synesthesia', 'Recursion', 'Emergence', 'Dialectic', 'Apophenia', 'Limbo', 'Flux', 'Sublime', 'Uncanny', 'Palimpsest', 'Chimera', 'Void', 'Transcend', 'Ineffable', 'Qualia', 'Gestalt', 'Simulacra', 'Abyssal',
+            'Existential', 'Nihilism', 'Solipsism', 'Phenomenology', 'Hermeneutics', 'Deconstruction', 'Postmodern', 'Absurdism', 'Catharsis', 'Epiphany', 'Melancholy', 'Nostalgia', 'Longing', 'Reverie', 'Pathos', 'Ethos', 'Logos', 'Mythos', 'Anamnesis', 'Intertextuality', 'Metafiction', 'Stream', 'Lacuna', 'Caesura', 'Enjambment'
+        ];
+        
+        let currentTopic = 'Hypertext';
+        let abortController = null;
+
+        // --- DOM Elements ---
+        const els = {
+            apiKey: document.getElementById('api-key-input'),
+            searchForm: document.getElementById('search-form'),
+            searchInput: document.getElementById('search-input'),
+            randomBtn: document.getElementById('random-btn'),
+            searchBtn: document.getElementById('search-btn'),
+            title: document.getElementById('topic-title'),
+            content: document.getElementById('content')
+        };
+
+        // --- Initialization ---
+        els.apiKey.value = localStorage.getItem('gemini_api_key') || '';
+        els.apiKey.addEventListener('input', (e) => localStorage.setItem('gemini_api_key', e.target.value));
+
+        // --- Core Logic ---
+        async function loadTopic(topic) {
+            const apiKey = els.apiKey.value.trim();
+            if (!apiKey) {
+                els.content.innerHTML = '<span class="error">Please enter your Gemini API Key in the top right.</span>';
+                return;
+            }
+
+            // Cancel previous request if running
+            if (abortController) abortController.abort();
+            abortController = new AbortController();
+
+            currentTopic = topic;
+            els.title.textContent = topic;
+            els.searchInput.value = '';
+            els.content.textContent = '';
+            els.content.className = 'streaming';
+            setLoadingState(true);
+
+            const prompt = `Generate a highly detailed, data-driven, and objective encyclopedia-style definition for the term: "${topic}". The tone must be strictly robotic, precise, and devoid of any emotion, narrative, or figurative language. The definition should be comprehensive, approximately two to three paragraphs long, aiming for high information density. Focus on presenting pure, factual information. Do not use markdown, titles, or any special formatting. Respond with only the text of the definition itself.`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { thinkingConfig: { thinkingBudget: 0 } } // Disable thinking for speed
+                    }),
+                    signal: abortController.signal
+                });
+
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                const chunk = data.candidates[0].content.parts[0].text;
+                                fullText += chunk;
+                                els.content.textContent = fullText;
+                            } catch (e) { /* Ignore parse errors for incomplete chunks */ }
+                        }
+                    }
+                }
+                
+                makeInteractive(fullText);
+
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    els.content.innerHTML = `<span class="error">${err.message}</span>`;
+                }
+            } finally {
+                els.content.classList.remove('streaming');
+                setLoadingState(false);
+            }
+        }
+
+        function makeInteractive(text) {
+            els.content.innerHTML = '';
+            // Split by whitespace but keep the whitespace tokens
+            const tokens = text.split(/(\s+)/);
+            
+            const fragment = document.createDocumentFragment();
+            
+            tokens.forEach(token => {
+                if (/\S/.test(token)) {
+                    const cleanWord = token.replace(/[.,!?;:()"']/g, '');
+                    if (cleanWord) {
+                        const span = document.createElement('span');
+                        span.textContent = token;
+                        span.className = 'interactive-word';
+                        span.onclick = () => loadTopic(cleanWord);
+                        fragment.appendChild(span);
+                    } else {
+                        fragment.appendChild(document.createTextNode(token));
+                    }
+                } else {
+                    fragment.appendChild(document.createTextNode(token));
+                }
+            });
+            
+            els.content.appendChild(fragment);
+        }
+
+        function setLoadingState(isLoading) {
+            els.searchBtn.disabled = isLoading;
+            els.randomBtn.disabled = isLoading;
+            els.searchInput.disabled = isLoading;
+        }
+
+        // --- Event Listeners ---
+        els.searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const val = els.searchInput.value.trim();
+            if (val) loadTopic(val);
+        });
+
+        els.randomBtn.addEventListener('click', () => {
+            let randomWord;
+            do {
+                randomWord = PREDEFINED_WORDS[Math.floor(Math.random() * PREDEFINED_WORDS.length)];
+            } while (randomWord.toLowerCase() === currentTopic.toLowerCase());
+            loadTopic(randomWord);
+        });
+
+        // Start initial load
+        loadTopic(currentTopic);
+    </script>
+</body>
+</html>
