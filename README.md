@@ -1,24 +1,39 @@
-# Infinite Wiki
+# AXIOM Infinite Wiki
 
-A minimal, zero-dependency, infinite encyclopedia powered by the Gemini API. Every word generated is a clickable hyperlink that generates a new, highly detailed definition in real-time.
+A zero-dependency browser encyclopedia that streams concise topic definitions from the Gemini API and turns generated words into navigable topics.
 
-Adhering to a strict minimalist design philosophy, this project contains no build steps, no bundlers, and no external libraries.
+## Properties
 
-## Features
-- **Single File:** The entire application (HTML, CSS, JS) is contained within `index.html`.
-- **Zero Dependencies:** No Node.js, React, or SDKs. Uses native browser APIs (`fetch`, `TextDecoder`, `DocumentFragment`).
-- **Native Streaming:** Parses Server-Sent Events (SSE) directly from Google's REST endpoints for ultra-low latency text streaming.
-- **Local Storage:** Your API key is saved locally in your browser's `localStorage`. It is never sent anywhere except directly to Google's API.
+- Single-file application: HTML, CSS, and JavaScript live in `index.html`.
+- No build step, package manager, SDK, framework, or runtime dependency.
+- Native SSE streaming with cancellation of superseded requests.
+- Gemini API keys are held only in page memory and sent in the `x-goog-api-key` request header.
+- Generated content is inserted as text, not trusted HTML.
+- A restrictive Content Security Policy limits network access to Google's Gemini API.
+- Keyboard-accessible generated topic links and responsive controls.
 
 ## Usage
 
-1. Obtain a [Google Gemini API Key](https://aistudio.google.com/app/apikey).
-2. Open `index.html` directly in any modern web browser (no local server required).
-3. Paste your API key into the input field in the top right corner.
-4. Search for a topic, or click "Random" to begin.
-5. Click any word in the generated text to infinitely traverse topics.
+Open `index.html` in a modern browser, enter a Gemini API key, then search or select `rand`. Generated words can be clicked to traverse to another topic.
 
-## Architecture Notes
-- **State Management:** Handled implicitly by the DOM to avoid Virtual DOM overhead.
-- **Network:** Uses `AbortController` to instantly kill pending streams if a new topic is clicked, saving bandwidth and preventing race conditions.
-- **Model:** Hardcoded to use `gemini-2.5-flash` with `thinkingBudget: 0` for maximum speed.
+The configured model is `gemini-3.5-flash-lite`. API availability, quotas, and charges are controlled by the Google account associated with the supplied key; this project does not enable billing or paid capacity.
+
+## Security boundary
+
+This is a client-side application. The API key is necessarily available to the browser page while in use. It is not persisted by the application and is not placed in the request URL, local storage, cookies, generated content, or repository state. Use a key whose restrictions and quota are appropriate for client-side use.
+
+Model output is untrusted content. The application renders generated text through DOM text nodes and does not execute generated markup or commands.
+
+## Validation
+
+Run:
+
+```bash
+python3 -m unittest -v tests/test_browser.py
+```
+
+The test launches local headless Chromium against an instrumented copy of the page. Network requests are mocked; it covers streaming, request cancellation, generated-topic navigation, and HTTP error handling without consuming Gemini quota.
+
+## License
+
+MIT. See `LICENSE`.
