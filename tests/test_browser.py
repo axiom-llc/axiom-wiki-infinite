@@ -35,7 +35,7 @@ class BrowserTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             page=Path(tmp)/'index.html'
             page.write_text(source.replace('</body>', HARNESS+'\n</body>'), encoding='utf-8')
-            result=subprocess.run([CHROMIUM,'--headless=new','--no-sandbox','--disable-gpu','--virtual-time-budget=3000','--dump-dom',page.as_uri()],capture_output=True,text=True,timeout=15)
+            result=subprocess.run([CHROMIUM,'--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-zygote','--virtual-time-budget=3000','--timeout=10000','--dump-dom',page.as_uri()],capture_output=True,text=True,timeout=30)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('data-test-result="pass"',result.stdout)
 
